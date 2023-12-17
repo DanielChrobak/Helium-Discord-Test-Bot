@@ -6,7 +6,7 @@ import requests
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
-API_URL = "https://helium-api.heliumgeek.com/v0/gateways?name="
+API_GATEWAY_INFO_URL = "https://helium-api.heliumgeek.com/v0/gateways?name="
 API_KEY = os.getenv('API_KEY')  # Fetch API key from environment variable
 
 @bot.event
@@ -22,8 +22,13 @@ async def on_ready():
 @app_commands.describe(hotspot_name="Enter the name of the hotspot")
 async def search(interaction: discord.Interaction, hotspot_name: str):
     formatted_name = "+".join(hotspot_name.lower().split())
-    header = {"x-api-key": API_KEY}  # Use the API key fetched from environment variable
-    request = requests.get(f"{API_URL}{formatted_name}", headers=header)
+    header = {"x-api-key": API_KEY}  # Use the API key fetched from the environment variable
+
+    if API_KEY is None:
+        await interaction.response.send_message("API key not found. Please set the API_KEY environment variable.", ephemeral=True)
+        return
+
+    request = requests.get(f"{API_GATEWAY_INFO_URL}{formatted_name}", headers=header)
     data = request.json()
 
     if request.status_code == 200:
@@ -36,7 +41,9 @@ async def search(interaction: discord.Interaction, hotspot_name: str):
             embed.add_field(name="Status", value=hotspot.get("statusString"), inline=True)
 
             speedtest_avg = hotspot.get("recent", {}).get("speedtestAverage", {})
-            embed.add_field(name="Speedtest Avg", value=f"Upload: {speedtest_avg.get('upload')}\nDownload: {speedtest_avg.get('download')}\nLatency: {speedtest_avg.get('latency')}", inline=True)
+            upload_mbps = round(speedtest_avg.get('upload') * 0.000008, 2) if speedtest_avg.get('upload') else "None"
+            download_mbps = round(speedtest_avg.get('download') * 0.000008, 2) if speedtest_avg.get('download') else "None"
+            embed.add_field(name="Speedtest Avg", value=f"Upload: {upload_mbps} Mbps\nDownload: {download_mbps} Mbps\nLatency: {speedtest_avg.get('latency')} ms", inline=True)
 
             total_rank = hotspot.get("recent", {}).get("epoch", {}).get("mobileRewards", {}).get("total", {}).get("rank")
             poc_rank = hotspot.get("recent", {}).get("epoch", {}).get("mobileRewards", {}).get("poc", {}).get("rank")
